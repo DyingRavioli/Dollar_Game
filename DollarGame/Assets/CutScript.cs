@@ -1,7 +1,4 @@
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.Numerics;
 using UnityEngine;
 
 public class CutScript : MonoBehaviour
@@ -100,6 +97,9 @@ public class CutScript : MonoBehaviour
 
         List<int> intersectionInts = new List<int>();
         List<int> oldVertInts = new List<int>();
+        
+        int oppInOtherTriangle;
+        List<int> intsInOtherTriangle = new List<int>();
 
         Ray[] rays = {new Ray(vert1, opp - vert1), new Ray(vert2, opp - vert2)};
 
@@ -113,13 +113,19 @@ public class CutScript : MonoBehaviour
                 if (plane.GetSide(vert1))
                 {
                     newIntIndex = AddNewVertex(transform.InverseTransformPoint(intersection), new Vector3(0.5f,0.5f,0.5f), new Vector2(0,0), leftVertices, leftNormals, leftUvs);
+                    intersectionInts.Add(newIntIndex);
+                    newIntIndex = AddNewVertex(transform.InverseTransformPoint(intersection), new Vector3(0.5f,0.5f,0.5f), new Vector2(0,0), rightVertices, rightNormals, rightUvs);
+                    intsInOtherTriangle.Add(newIntIndex);
                 }
                 else
                 {
                     newIntIndex = AddNewVertex(transform.InverseTransformPoint(intersection), new Vector3(0.5f,0.5f,0.5f), new Vector2(0,0), rightVertices, rightNormals, rightUvs);
+                    intersectionInts.Add(newIntIndex);
+                    newIntIndex = AddNewVertex(transform.InverseTransformPoint(intersection), new Vector3(0.5f,0.5f,0.5f), new Vector2(0,0), leftVertices, leftNormals, leftUvs);
+                    intsInOtherTriangle.Add(newIntIndex);
                 }
                 
-                intersectionInts.Add(newIntIndex);
+                
             }
         }
 
@@ -131,7 +137,7 @@ public class CutScript : MonoBehaviour
             newIndex = AddNewVertex(transform.InverseTransformPoint(vert2), new Vector3(0,0,0), new Vector3(0,0), leftVertices, leftNormals, leftUvs);
             oldVertInts.Add(newIndex);
             newIndex = AddNewVertex(transform.InverseTransformPoint(opp), new Vector3(0,0,0), new Vector3(0,0), rightVertices, rightNormals, rightUvs);
-            oldVertInts.Add(newIndex);
+            oppInOtherTriangle = newIndex;
         }
         else
         {
@@ -140,8 +146,8 @@ public class CutScript : MonoBehaviour
             newIndex = AddNewVertex(transform.InverseTransformPoint(vert2), new Vector3(0,0,0), new Vector3(0,0), rightVertices, rightNormals, rightUvs);
             oldVertInts.Add(newIndex);
             newIndex = AddNewVertex(transform.InverseTransformPoint(opp), new Vector3(0,0,0), new Vector3(0,0), leftVertices, leftNormals, leftUvs);
-            oldVertInts.Add(newIndex);
-            }
+            oppInOtherTriangle = newIndex;
+        }
 
         trianglesToFill.Add(oldVertInts[0]);
         trianglesToFill.Add(intersectionInts[1]);
@@ -151,9 +157,9 @@ public class CutScript : MonoBehaviour
         trianglesToFill.Add(intersectionInts[0]);
         trianglesToFill.Add(intersectionInts[1]);
 
-        otherTrianglesToFill.Add(oldVertInts[2]);
-        otherTrianglesToFill.Add(intersectionInts[1]);
-        otherTrianglesToFill.Add(intersectionInts[0]);
+        otherTrianglesToFill.Add(oppInOtherTriangle);
+        otherTrianglesToFill.Add(intsInOtherTriangle[1]);
+        otherTrianglesToFill.Add(intsInOtherTriangle[0]);
     }
 
     void Cut()
