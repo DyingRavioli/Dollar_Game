@@ -5,6 +5,9 @@ public class CutScript : MonoBehaviour
 {
     public MeshFilter meshFilter;
     public Mesh dollarMesh;
+    public Mesh handMesh;
+    public Material handMat;
+    public Material dollarMat;
     Plane plane;
 
     int[] oldTriangles;
@@ -26,10 +29,16 @@ public class CutScript : MonoBehaviour
     Mesh leftMesh;
     Mesh rightMesh;
 
-    public GameObject left;
-    public GameObject right;
+    //
+    Vector3 tearDirection;
 
-    List<Vector3> tests = new List<Vector3>();
+    GameObject oneHand;
+    GameObject twoHand;
+
+    float kinematicTimer = 1;
+
+    public bool oneHandTriggered = false;
+    public bool twoHandTriggered = false;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -42,31 +51,28 @@ public class CutScript : MonoBehaviour
         oldNormals = dollarMesh.normals;
         oldUvs = dollarMesh.uv;
 
-        Cut();
+        ChooseAngle();
 
-        left.GetComponent<MeshFilter>().mesh = leftMesh;
-        right.GetComponent<MeshFilter>().mesh = rightMesh;
     }
 
     // Update is called once per frame
     void Update()
     {
-        foreach (Vector3 testDebug in tests)
+        if (oneHandTriggered && twoHandTriggered)
         {
-            Debug.DrawRay(testDebug, Vector3.up, Color.green);
+            Cut();
+            Destroy(oneHand);
+            Destroy(twoHand);
+            Destroy(gameObject);
         }
-        
-        //foreach (Vector3 vert in leftVertices)
-        //{
-        //    Vector3 worldVert = transform.TransformPoint(vert);
-        //    print(worldVert);
-        //    Debug.DrawRay(worldVert, Vector3.up, Color.green);
-        //}
-        //foreach (Vector3 vert in rightVertices)
-        //{
-        //    Vector3 worldVert = transform.TransformPoint(vert);
-        //    Debug.DrawRay(worldVert, Vector3.up, Color.red);
-        //}
+        if (kinematicTimer > 0)
+        {
+            kinematicTimer -= Time.deltaTime;
+        }
+        else
+        {
+            GetComponent<Rigidbody>().isKinematic = true;
+        }
     }
 
     int AddNewVertex(Vector3 vertex, Vector3 normal, Vector2 uv, List<Vector3> vertices, List<Vector3> normals, List<Vector2> uvs)
@@ -85,7 +91,7 @@ public class CutScript : MonoBehaviour
         return index;
     }
 
-    void TriangleCutReimage(Vector3 vert1, Vector3 vert1norm, Vector3 vert2, Vector3 vert2norm, Vector3 opp, Vector2[] triUvs)
+    void TriangleCutReimage(Vector3 vert1, Vector3 vert2, Vector3 opp)
     {
         List<int> trianglesToFill = leftTriangles;
         List<int> otherTrianglesToFill = rightTriangles;
@@ -162,9 +168,38 @@ public class CutScript : MonoBehaviour
         otherTrianglesToFill.Add(intsInOtherTriangle[0]);
     }
 
+    void ChooseAngle()
+    {
+        float angle = Random.Range(0f,360f);
+        tearDirection = Quaternion.Euler(0, angle, 0) * transform.up;
+        plane = new Plane(tearDirection, transform.position);
+
+        oneHand = new GameObject();
+        oneHand.transform.position = transform.position + tearDirection * 20;
+        MoveTowardsScript oneHandMoveScript = oneHand.AddComponent<MoveTowardsScript>();
+        MeshRenderer oneHandmRender = oneHand.AddComponent<MeshRenderer>();
+        oneHandmRender.material = handMat;
+        MeshFilter oneHandmFilter = oneHand.AddComponent<MeshFilter>();
+        oneHandmFilter.mesh = handMesh;
+        oneHandMoveScript.target = gameObject;
+        SphereCollider oneHandTrigger = oneHand.AddComponent<SphereCollider>();
+        oneHandTrigger.isTrigger = true;
+
+        twoHand = new GameObject();
+        twoHand.transform.position = transform.position + tearDirection * -20;
+        MoveTowardsScript twoHandMoveScript = twoHand.AddComponent<MoveTowardsScript>();
+        MeshRenderer twoHandmRender = twoHand.AddComponent<MeshRenderer>();
+        twoHandmRender.material = handMat;
+        MeshFilter twoHandmFilter = twoHand.AddComponent<MeshFilter>();
+        twoHandmFilter.mesh = handMesh;
+        twoHandMoveScript.target = gameObject;
+        SphereCollider twoHandTrigger = twoHand.AddComponent<SphereCollider>();
+        twoHandTrigger.isTrigger = true;
+
+    }
+
     void Cut()
     {
-        plane = new Plane(transform.up, transform.position);
 
         for (int triIndex = 0; triIndex < oldTriangles.Length; triIndex += 3)
         {
@@ -199,17 +234,17 @@ public class CutScript : MonoBehaviour
 
             else if (plane.GetSide(vert0World) == plane.GetSide(vert1World))
             {
-                TriangleCutReimage(vert0World, triNorms[0], vert1World, triNorms[1], vert2World, triUvs);
+                TriangleCutReimage(vert0World, vert1World, vert2World);
             }
 
             else if (plane.GetSide(vert1World) == plane.GetSide(vert2World))
             {
-                TriangleCutReimage(vert1World, triNorms[1], vert2World, triNorms[2], vert0World, triUvs);
+                TriangleCutReimage(vert1World, vert2World, vert0World);
             }
 
             else if (plane.GetSide(vert2World) == plane.GetSide(vert0World))
             {
-                TriangleCutReimage(vert2World, triNorms[2], vert0World, triNorms[0], vert1World, triUvs);
+                TriangleCutReimage(vert2World, vert0World, vert1World);
             }
             
         }
@@ -221,6 +256,26 @@ public class CutScript : MonoBehaviour
         leftMesh.triangles = leftTriangles.ToArray();
         leftMesh.RecalculateNormals();
         leftMesh.RecalculateTangents();
+        leftMesh.RecalculateBounds();
+
+        GameObject leftGameObject = new GameObject();
+        leftGameObject.transform.position = leftMesh.bounds.center;
+        leftGameObject.transform.localScale = Vector3.one * 100f;
+        leftGameObject.transform.rotation = Quaternion.Euler(-90,0,0);
+        MeshFilter leftMeshFil = leftGameObject.AddComponent<MeshFilter>();
+        MeshCollider leftMeshColl = leftGameObject.AddComponent<MeshCollider>();
+        leftMeshColl.sharedMesh = leftMesh;
+        MeshRenderer leftMeR = leftGameObject.AddComponent<MeshRenderer>();
+        leftMeR.material = dollarMat;
+        CutScript leftCutScript = leftGameObject.AddComponent<CutScript>();
+        leftCutScript.handMesh = handMesh;
+        leftCutScript.handMat = handMat;
+        leftCutScript.dollarMat = dollarMat;
+        Rigidbody leftRB = leftGameObject.AddComponent<Rigidbody>();
+        leftRB.useGravity = false;
+        leftMeshFil.mesh = leftMesh;
+        leftRB.linearDamping = 3;
+        leftRB.AddForce(tearDirection * 10, ForceMode.Impulse);
 
         rightMesh = new Mesh();
         rightMesh.vertices = rightVertices.ToArray();
@@ -229,6 +284,26 @@ public class CutScript : MonoBehaviour
         rightMesh.triangles = rightTriangles.ToArray();
         rightMesh.RecalculateNormals();
         rightMesh.RecalculateTangents();
+        rightMesh.RecalculateBounds();
+
+        GameObject rightGameObject = new GameObject();
+        rightGameObject.transform.position = rightMesh.bounds.center;
+        rightGameObject.transform.localScale = Vector3.one * 100f;
+        rightGameObject.transform.rotation = Quaternion.Euler(-90,0,0);
+        MeshFilter rightMeshFil = rightGameObject.AddComponent<MeshFilter>();
+        MeshRenderer rightMeR = rightGameObject.AddComponent<MeshRenderer>();
+        rightMeR.material = dollarMat;
+        MeshCollider rightMeshColl = rightGameObject.AddComponent<MeshCollider>();
+        rightMeshColl.sharedMesh = rightMesh;
+        CutScript rightCutScript = rightGameObject.AddComponent<CutScript>();
+        rightCutScript.handMesh = handMesh;
+        rightCutScript.handMat = handMat;
+        rightCutScript.dollarMat = dollarMat;
+        Rigidbody rightRB = rightGameObject.AddComponent<Rigidbody>();
+        rightRB.useGravity = false;
+        rightMeshFil.mesh = rightMesh;
+        rightRB.linearDamping = 3;
+        rightRB.AddForce(tearDirection * -10, ForceMode.Impulse);
     }
 
     
